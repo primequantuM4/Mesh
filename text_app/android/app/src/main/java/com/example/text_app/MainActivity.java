@@ -13,6 +13,8 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.Context;
+import android.net.wifi.p2p.WifiP2pDevice;
+import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
@@ -31,10 +33,14 @@ public class MainActivity extends FlutterActivity {
 
     private static final String CHANNEL = "bluetooth_channel";
     private final BluetoothHelper bluetoothHelper = new BluetoothHelper();
+    private final WifiDirectHelper wifiDirectHelper = new WifiDirectHelper(this, (data) -> Log.d("MainActivity", "Received data: ", data));
 
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine){
         super.configureFlutterEngine(flutterEngine);
+        wifiDirectHelper.discoverPeers();
+        wifiDirectHelper.registerListeners();
+
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
                 .setMethodCallHandler((call, result) -> {
                     if(call.method.equals("startServer")) {
@@ -72,6 +78,132 @@ public class MainActivity extends FlutterActivity {
         }
     }}
 
+
+class WifiDirectHelper{
+    private  static  final String  TAG = "WifiDirectHelper";
+
+    private WifiP2pManager manager;
+    private WifiP2pManager.Channel channel;
+    private WifiP2pManager.PeerListListener peerListListener;
+    private  WifiP2pManager.ConnectionInfoListener connectionInfoListener;
+
+    private  ArrayList<WifiP2pDevice> peers = new ArrayList<WifiP2pDevice>();
+    private boolean isGroupOwner = false;
+    private  String groupOwnerAddress;
+
+    public  interface  DataCallback {
+        void onDataReceived(String data);
+    }
+
+    private  DataCallback dataCallback;
+
+    public  WifiDirectHelper(Context context, DataCallback callback){
+
+        this.manager = (WifiP2pManager) context.getSystemService(Context.WIFI_P2P_SERVICE);
+        this.channel = manager.initialize(context, context.getMainLooper(), null);
+        this.dataCallback = callback;
+        initializeListeners();
+
+    }
+
+    private void initializeListeners(){
+        this.peerListListener = peerList->{
+            peers.clear();
+            peers.addAll(peerList.getDeviceList());
+            Log.d(TAG, "Peers discovered: " + peers.size());
+        };
+
+        this.connectionInfoListener = info -> {
+            groupOwnerAddress = info.groupOwnerAddress.getHostAddress();
+            isGroupOwner = info.isGroupOwner;
+
+            if (isGroupOwner) {
+                startServer();
+            }else{
+                connectToServer(groupOwnerAddress);
+            }
+        };
+    }
+
+    public  void discoverPeers(){
+        manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
+            @Override
+            public  void onSuccess(){
+                Log.d(TAG,"Discovery started");
+            }
+
+            @Override
+            public  void onFailure(int reason){
+                Log.e(TAG, "Discovery failed: " + reason);)
+            }
+        })
+    }
+
+    public void connectToPeer(WifiP2pDevice device){
+        WifiP2pConfig config = new WifiP2pConfig();
+        config.deviceAddress = device.deviceAddress;
+
+        manager.connect(channel, config, new WifiP2pManager.ActionListener() {
+            @Override
+            public void onSuccess() {
+                Log.d(TAG, "Connection initiated");
+            }
+
+            @Override
+            public void onFailure(int reason) {
+                Log.e(TAG, "Connection failed: " + reason);
+            }
+        })
+
+    }
+
+    public void startServer() {
+        new Thread(() -> {
+            try (ServerSocket serverSocket = new ServerSocket(8888)) {
+                Log.d(TAG, "Server waiting for connection...");
+                Socket socket = serverSocket.accept();
+                Log.d(TAG, "Connected");
+
+                BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                String message = reader.readLine();
+
+                Log.d(TAG, "Recieved: "+message);
+
+
+                if (dataCallback != null){
+                    dataCallback.onDataReceived(message);
+                }
+                reader.close();
+                socket.close();
+            }catch(Exception e){
+                Log.e(TAG, "Server error:", e.getMessage());
+            }
+        }).start()
+
+    }
+    public void getDiscoveredPeers(Context context) {
+        return peers;
+    }
+    public  void registerListeners(){
+        manager.requestPeers(channel,peerListListener);
+        manager.requestConnectionInfo(channel, connectionInfoListener);
+    }
+
+    public void connectToServer(String host) {
+        new Thread(()->{
+            try(Socket socket = new Socket(host, 8888)) {
+                Log.d(TAG, "Connected to server");
+                OutputStream outputStream = socket.getOutputStream();
+                outputStream.write("Hello world!".getBytes());
+                outputStream.flush();
+                outputStream.close();
+            }catch (Exception e){
+                Log.e(TAG, "Connection failed", e.getMessage())
+            }
+        }).start();
+
+    }
+}
 
 class BluetoothHelper{
     private static final String TAG = "BluetoothHelper";
