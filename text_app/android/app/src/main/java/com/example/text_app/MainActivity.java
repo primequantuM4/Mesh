@@ -1,3 +1,5 @@
+package com.example.text_app;
+
 import static androidx.core.content.ContextCompat.checkSelfPermission;
 
 import android.Manifest;
@@ -5,12 +7,17 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
+import android.content.BroadcastReceiver;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.Context;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import io.flutter.Log;
@@ -18,7 +25,8 @@ import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
 
-class MainActivity extends FlutterActivity {
+public class MainActivity extends FlutterActivity {
+
     private static final String CHANNEL = "bluetooth_channel";
     private final BluetoothHelper bluetoothHelper = new BluetoothHelper();
 
@@ -27,24 +35,29 @@ class MainActivity extends FlutterActivity {
         super.configureFlutterEngine(flutterEngine);
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
                 .setMethodCallHandler((call, result) -> {
-                        if(call.method.equals("startServer")) {
+                    if(call.method.equals("startServer")) {
+                        requestBluetoothPermission();
+                        bluetoothHelper.startServer(this);
+                        result.success("Server Started");
+                    } else if (call.method.equals("connectToServer")) {
+                        String deviceAddress = call.argument("deviceAddress");
+                        BluetoothDevice device = bluetoothHelper.getDeviceByAddress(deviceAddress);
+                        if (device == null) {
+                            result.error("Device not found", null, null);
+                        } else {
                             requestBluetoothPermission();
-                            bluetoothHelper.startServer(this);
-                            result.success("Server Started");
-                        } else if (call.method.equals("connectToServer")) {
-                            String deviceAddress = call.argument("deviceAddress");
-                            BluetoothDevice device = bluetoothHelper.getDeviceByAddress(deviceAddress);
-                            if (device == null) {
-                                result.error("Device not found", null, null);
-                            } else {
-                                requestBluetoothPermission();
-                                bluetoothHelper.connectToServer(this, device);
-                                result.success("Connected to server");
-                            }
                             bluetoothHelper.connectToServer(this, device);
                             result.success("Connected to server");
-                        } else {
-                            result.notImplemented();
+                        }
+                        bluetoothHelper.connectToServer(this, device);
+                        result.success("Connected to server");
+                    }else if (call.method.equals("printDevices")) {
+                        bluetoothHelper.printDevices(this);
+                        requestBluetoothPermission();
+                        result.success("Devices printed");
+                    } else {
+
+                        result.notImplemented();
                     }
 
                 });
@@ -73,6 +86,30 @@ class BluetoothHelper{
 
     }
 
+
+    public void printDevices(Context context) {
+        try {
+            if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if(checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "Permission not granted");
+                    return;
+                }
+            }
+            Set<BluetoothDevice> devices = bluetoothAdapter.getBondedDevices();
+            try {
+                for(BluetoothDevice device: devices) {
+                   String name = device.getName();
+                   String address = device.getAddress();
+
+                   Log.d(TAG, "Device: " + name + " " + address);
+                }
+            } catch (Exception e) {
+                Log.d(TAG, "Error while printing devices", e);
+            }
+        }catch(Exception e) {
+            Log.e(TAG, "Error printing devices", e);
+        }
+    }
     public void startServer(Context context) {
         new Thread(() -> {
             try {
@@ -139,3 +176,39 @@ class BluetoothHelper{
     }
 }
 
+class BluetoothScanner {
+    private static final String TAG = "Bluetooth Scanner";
+    private BluetoothAdapter bluetoothAdapter;
+    private final List<BluetoothDevice> discoveredDevices = new ArrayList<>();
+    private final Context context;
+   private final BroadcastReceiver reciever;
+
+   public BluetoothScanner(Context context) {
+       this.context = context;
+       bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+       reciever = new BroadcastReceiver() {
+           @Override
+           public void onReceive(Context context, Intent intent) {
+               String action = intent.getAction();
+               if (BluetoothDevice.ACTION_FOUND.equals(action)) {
+                   try {
+
+                       if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                           if(checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                               Log.e(TAG, "Permission not granted");
+                               return;
+                           }
+                       BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+                       if (device != null) {
+                           String deviceName = device.getName() == null ? "Unknown Device" : device.getName();
+                           String deviceAddress = device.getAddress();
+                       }
+                   }
+                   } catch (Exception e) {
+                       throw new RuntimeException(e);
+                   }
+               }
+           }
+       };
+   }
+}
