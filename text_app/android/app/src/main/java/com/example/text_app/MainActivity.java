@@ -1,6 +1,7 @@
 package com.example.text_app;
 
 import static androidx.core.content.ContextCompat.checkSelfPermission;
+import static androidx.core.content.ContextCompat.getAttributionTag;
 
 import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
@@ -9,6 +10,7 @@ import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.content.BroadcastReceiver;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.Context;
 import android.os.Build;
@@ -178,15 +180,15 @@ class BluetoothHelper{
 
 class BluetoothScanner {
     private static final String TAG = "Bluetooth Scanner";
-    private BluetoothAdapter bluetoothAdapter;
+    private final BluetoothAdapter bluetoothAdapter;
     private final List<BluetoothDevice> discoveredDevices = new ArrayList<>();
     private final Context context;
-   private final BroadcastReceiver reciever;
+   private final BroadcastReceiver receiver;
 
    public BluetoothScanner(Context context) {
        this.context = context;
        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
-       reciever = new BroadcastReceiver() {
+       receiver = new BroadcastReceiver() {
            @Override
            public void onReceive(Context context, Intent intent) {
                String action = intent.getAction();
@@ -202,13 +204,84 @@ class BluetoothScanner {
                        if (device != null) {
                            String deviceName = device.getName() == null ? "Unknown Device" : device.getName();
                            String deviceAddress = device.getAddress();
+                           Log.d(TAG, "Discovered device: " + deviceName + " " + deviceAddress);
+                           discoveredDevices.add(device);
                        }
                    }
+
                    } catch (Exception e) {
                        throw new RuntimeException(e);
                    }
+               }else if(BluetoothAdapter.ACTION_DISCOVERY_FINISHED.equals(action)) {
+                   Log.d(TAG, "Discovery finished");
                }
            }
        };
    }
+    public void startScanning() {
+        if (bluetoothAdapter == null) {
+            Log.e(TAG, "Bluetooth not supported on this device.");
+            return;
+        }
+
+        if (!bluetoothAdapter.isEnabled()) {
+            Log.e(TAG, "Bluetooth is disabled. Please enable Bluetooth first.");
+            return;
+        }
+
+        // Clear previous scan results
+        discoveredDevices.clear();
+
+        // Register for broadcasts when a device is discovered
+        IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
+        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+        context.registerReceiver(receiver, filter);
+
+        // Start discovery
+        try {
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "Permission not granted");
+                    return;
+                }
+
+                if (bluetoothAdapter.isDiscovering()) {
+                    bluetoothAdapter.cancelDiscovery();
+                }
+                bluetoothAdapter.startDiscovery();
+                Log.d(TAG, "Bluetooth discovery started.");
+            }
+        }catch (Exception e) {
+            Log.e(TAG, "Error while starting discovery", e);
+        }}
+
+    public void stopScanning() {
+
+        try {
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    Log.e(TAG, "Permission not granted");
+                    return;
+                }
+
+                if (bluetoothAdapter != null && bluetoothAdapter.isDiscovering()) {
+                    bluetoothAdapter.cancelDiscovery();
+                    Log.d(TAG, "Bluetooth discovery stopped.");
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error while stopping discovery", e);
+        }
+        try {
+            context.unregisterReceiver(receiver);
+        } catch (IllegalArgumentException e) {
+            Log.e(TAG, "Receiver not registered or already unregistered.");
+        }
+    }
+
+    public List<BluetoothDevice> getDiscoveredDevices() {
+        return new ArrayList<>(discoveredDevices);
+    }
 }
