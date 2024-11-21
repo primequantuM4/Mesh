@@ -1,9 +1,11 @@
 package com.example.text_app;
 
+import static androidx.core.app.ActivityCompat.requestPermissions;
 import static androidx.core.content.ContextCompat.checkSelfPermission;
 import static androidx.core.content.ContextCompat.getAttributionTag;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
@@ -13,11 +15,13 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.Context;
+import android.net.wifi.p2p.WifiP2pConfig;
 import android.net.wifi.p2p.WifiP2pDevice;
 import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.RequiresPermission;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +37,7 @@ public class MainActivity extends FlutterActivity {
 
     private static final String CHANNEL = "bluetooth_channel";
     private final BluetoothHelper bluetoothHelper = new BluetoothHelper();
-    private final WifiDirectHelper wifiDirectHelper = new WifiDirectHelper(this, (data) -> Log.d("MainActivity", "Received data: ", data));
+    private final WifiDirectHelper wifiDirectHelper = new WifiDirectHelper(this, (data) -> Log.d("MainActivity", "Received data: "+ data));
 
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine){
@@ -125,18 +129,35 @@ class WifiDirectHelper{
         };
     }
 
-    public  void discoverPeers(){
-        manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
-            @Override
-            public  void onSuccess(){
-                Log.d(TAG,"Discovery started");
-            }
+    void requestPermissions(String[] permissions, int requestCode) {
 
-            @Override
-            public  void onFailure(int reason){
-                Log.e(TAG, "Discovery failed: " + reason);)
+    }
+
+    public  void discoverPeers(Context context){
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (context.checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES)
+                    != PackageManager.PERMISSION_GRANTED) {
+                // Request NEARBY_WIFI_DEVICES permission
+                requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, 1001);
             }
-        })
+        } else {
+            if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                // Request ACCESS_FINE_LOCATION permission
+                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1002);
+            }
+        }
+            manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
+                @Override
+                public  void onSuccess(){
+                    Log.d(TAG,"Discovery started");
+                }
+
+                @Override
+                public  void onFailure(int reason){
+                    Log.e(TAG, "Discovery failed: " + reason);
+                }
+            });
     }
 
     public void connectToPeer(WifiP2pDevice device){
