@@ -1,11 +1,8 @@
 package com.example.text_app;
 
-import static androidx.core.app.ActivityCompat.requestPermissions;
 import static androidx.core.content.ContextCompat.checkSelfPermission;
-import static androidx.core.content.ContextCompat.getAttributionTag;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
@@ -21,8 +18,13 @@ import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
-import androidx.annotation.RequiresPermission;
+import androidx.core.app.ActivityCompat;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -42,8 +44,8 @@ public class MainActivity extends FlutterActivity {
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine){
         super.configureFlutterEngine(flutterEngine);
-        wifiDirectHelper.discoverPeers();
-        wifiDirectHelper.registerListeners();
+        wifiDirectHelper.discoverPeers(this);
+        wifiDirectHelper.registerListeners(this);
 
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
                 .setMethodCallHandler((call, result) -> {
@@ -141,12 +143,16 @@ class WifiDirectHelper{
                 requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, 1001);
             }
         } else {
-            if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
-                    != PackageManager.PERMISSION_GRANTED) {
-                // Request ACCESS_FINE_LOCATION permission
-                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1002);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                if (context.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                        != PackageManager.PERMISSION_GRANTED) {
+                    // Request ACCESS_FINE_LOCATION permission
+                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1002);
+                }
             }
         }
+        try{
+
             manager.discoverPeers(channel, new WifiP2pManager.ActionListener() {
                 @Override
                 public  void onSuccess(){
@@ -158,11 +164,25 @@ class WifiDirectHelper{
                     Log.e(TAG, "Discovery failed: " + reason);
                 }
             });
+        }catch (Exception e){
+            Log.e(TAG, "Couldnt discover"+e);
+        }
     }
 
-    public void connectToPeer(WifiP2pDevice device){
+    public void connectToPeer(WifiP2pDevice device, Context context){
         WifiP2pConfig config = new WifiP2pConfig();
         config.deviceAddress = device.deviceAddress;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (context.checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES)
+                    != PackageManager.PERMISSION_GRANTED) {
+                // Request NEARBY_WIFI_DEVICES permission
+                requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, 1001);
+            }
+        }
+
+
+        try{
 
         manager.connect(channel, config, new WifiP2pManager.ActionListener() {
             @Override
@@ -174,7 +194,11 @@ class WifiDirectHelper{
             public void onFailure(int reason) {
                 Log.e(TAG, "Connection failed: " + reason);
             }
-        })
+        });
+
+        }catch (Exception e){
+        Log.e(TAG, "Couldnt discover"+e);
+    }
 
     }
 
@@ -197,17 +221,31 @@ class WifiDirectHelper{
                 reader.close();
                 socket.close();
             }catch(Exception e){
-                Log.e(TAG, "Server error:", e.getMessage());
+                Log.e(TAG, "Server error:"+e);
             }
-        }).start()
+        }).start();
 
     }
-    public void getDiscoveredPeers(Context context) {
+    public ArrayList<WifiP2pDevice> getDiscoveredPeers(Context context) {
         return peers;
     }
-    public  void registerListeners(){
+    public  void registerListeners(Context context){
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (context.checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES)
+                    != PackageManager.PERMISSION_GRANTED) {
+                // Request NEARBY_WIFI_DEVICES permission
+                requestPermissions(new String[]{Manifest.permission.NEARBY_WIFI_DEVICES}, 1001);
+            }
+        }
+
+
+        try{
         manager.requestPeers(channel,peerListListener);
         manager.requestConnectionInfo(channel, connectionInfoListener);
+        }catch (Exception e){
+            Log.e(TAG, "Couldnt register listeners"+e);
+        }
     }
 
     public void connectToServer(String host) {
@@ -219,7 +257,7 @@ class WifiDirectHelper{
                 outputStream.flush();
                 outputStream.close();
             }catch (Exception e){
-                Log.e(TAG, "Connection failed", e.getMessage())
+                Log.e(TAG, "Connection failed", e);
             }
         }).start();
 
