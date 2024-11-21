@@ -18,16 +18,18 @@ import android.net.wifi.p2p.WifiP2pManager;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
 
 import java.io.BufferedReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -76,7 +78,9 @@ public class MainActivity extends FlutterActivity {
 
                         String deviceAddress = call.argument("deviceAddress");
                         String message = call.argument("message");
-                        bluetoothHelper.sendMessage(this, bluetoothHelper.getDeviceByAddress("10:5B:AD:8B:BC:3C"), message);
+//                        bluetoothHelper.sendMessage(this, bluetoothHelper.getDeviceByAddress("10:5B:AD:8B:BC:3C"), message);
+                        bluetoothHelper.sendMessage(this, bluetoothHelper.getDeviceByAddress("18:56:80:F3:16:3B"), message);
+
                         requestBluetoothPermission();
                         result.success("Devices printed");
                     } else {
@@ -274,11 +278,32 @@ class WifiDirectHelper{
     }
 }
 
+class BluetoothSocketManager {
+    private static BluetoothSocketManager instance;
+    private Map<String, BluetoothSocket> socketMap = new HashMap<>();
+
+    private BluetoothSocketManager() {}
+
+    public static synchronized BluetoothSocketManager getInstance() {
+        if (instance == null) {
+            instance = new BluetoothSocketManager();
+        }
+        return instance;
+    }
+
+    public void addSocket(String deviceAddress, BluetoothSocket socket) {
+        socketMap.put(deviceAddress, socket);
+    }
+
+    public BluetoothSocket getSocket(String deviceAddress) {
+        return socketMap.get(deviceAddress);
+    }
+}
+
 class BluetoothHelper{
     private static final String TAG = "BluetoothHelper";
     private static final String APP_NAME = "BluetoothEchoApp";
     private static final UUID APP_UUID = UUID.fromString("e8d8d914-5d36-11ec-bf63-0242ac130002");
-
 
     private final BluetoothAdapter bluetoothAdapter;
     public BluetoothHelper() {
@@ -298,10 +323,26 @@ class BluetoothHelper{
             return null;
         }
     }
+
+    private BluetoothSocket getSocket(BluetoothDevice device){
+        BluetoothSocket socket = BluetoothSocketManager.getInstance().getSocket(device.getAddress());
+        if (socket == null) {
+            try{
+                BluetoothSocket newSocket = createSocketWithPort(device, 4);
+                BluetoothSocketManager.getInstance().addSocket(device.getAddress(), newSocket);
+                return newSocket;
+            }catch (Exception e){
+                Log.e(TAG, "Error while creating a socket with port");
+            }
+        }
+
+        return socket;
+    }
     public void sendMessage(Context context, BluetoothDevice device, String message) {
         new Thread(() -> {
             BluetoothSocket socket = null;
             OutputStream outputStream = null;
+            InputStream inputStream = null;
 
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -313,42 +354,60 @@ class BluetoothHelper{
 
                 // Establish the connection
 //                socket = device.createRfcommSocketToServiceRecord(APP_UUID);
-                socket = createSocketWithPort(device, 4);
+                socket = getSocket(device);
 
                 Log.d(TAG, "Client: Connecting to " + device.getName());
-                try {
-                    socket.connect();
-                    Log.d(TAG,"Socket connection created");
-                }catch (Exception e) {
-                    Log.e(TAG, "Couldn't establish socket connection: ", e);
-                }
                 if (socket.isConnected()) {
                     Log.d(TAG, "Client: Connected");
                     Log.d(TAG, "=======================================");
                 }else {
+
+                    try {
+                        socket.connect();
+                        Log.d(TAG,"Socket connection created");
+                    }catch (Exception e) {
+                        Log.e(TAG, "Couldn't establish socket connection: ", e);
                     Log.d(TAG, "Something weird is going on and i don't know what it is");
                     Log.d(TAG, "=======================================");
+                    }
                 }
 
-                for(;;) {
-                // Get the output stream
-                outputStream = socket.getOutputStream();
 
+                outputStream = socket.getOutputStream();
                 String msg = "Uncle Roger";
-                // Send the message
+
                 outputStream.write(msg.getBytes());
                 outputStream.flush();
+
                 Log.d(TAG, "Message sent: " + msg);
+
+                inputStream = socket.getInputStream();
+                byte[] buffer = new byte[1024];
+
+                for(;;) {
+                    // Get the input stream
+                    try {
+                        int bytes = inputStream.read(buffer);
+                        String incomingMessage = new String(buffer, 0, bytes);
+                        Log.d(TAG, "Received Message"+ incomingMessage);
+                    }catch(Exception e) {
+                        Log.e(TAG,"Bluetooth Input stream was disconnected", e);
+                        break;
+                    }
+
+
+//                     Send the message
+                }
 
             } catch (Exception e) {
                 Log.e(TAG, "Error while sending message", e);
             } finally {
-                try {
+//                try {
 //                    if (outputStream != null) outputStream.close();
 //                    if (socket != null) socket.close();
-                } catch (Exception ignored) {
-                    Log.e(TAG, "Errror ignored", ignored);
-                }
+//                } catch (Exception ignored) {
+//                    Log.e(TAG, "Errror ignored", ignored);
+//                }
             }
         }).start();
     }
