@@ -54,6 +54,8 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
+
+    const address = "10:5B:AD:8B:BC:3C";
     final BluetoothManager blManager = BluetoothManager();
     return MaterialApp(
       title: 'Flutter Demo',
@@ -81,12 +83,27 @@ class MyApp extends StatelessWidget {
                 child: const Text("Get connected device"),
               ),
 
+
               ElevatedButton(
-                onPressed: () async{
-                  await blManager.sendMessage("10:5b:ad:8b:bc:3c", "Abebe beso bela");
-                },
-                child: const Text("Send message to 10:5b:ad:8b:bc:3c")
-              )
+                  onPressed: () async{
+                    await blManager.startServer();
+                  },
+                  child: const Text("Start Server1")
+              ),
+
+              ElevatedButton(
+                  onPressed: () async{
+                    await blManager.connectToServer(address);
+                  },
+                  child: const Text("Connect to server 2")
+              ),
+
+              ElevatedButton(
+                  onPressed: () async{
+                    await blManager.sendMessage(address, "Send message");
+                  },
+                  child: const Text("Send message to $address")
+              ),
             ],
           ),
         )),

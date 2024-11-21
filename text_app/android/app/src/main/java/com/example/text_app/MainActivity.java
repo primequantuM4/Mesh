@@ -23,6 +23,7 @@ import androidx.core.app.ActivityCompat;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
@@ -52,6 +53,8 @@ public class MainActivity extends FlutterActivity {
                     if(call.method.equals("startServer")) {
                         requestBluetoothPermission();
                         bluetoothHelper.startServer(this);
+                        BluetoothScanner scanner = new BluetoothScanner(this);
+                        scanner.startScanning();
                         result.success("Server Started");
                     } else if (call.method.equals("connectToServer")) {
                         String deviceAddress = call.argument("deviceAddress");
@@ -71,7 +74,9 @@ public class MainActivity extends FlutterActivity {
                         result.success("Devices printed");
                     } else if (call.method.equals("sendMessage")) {
 
-                        bluetoothHelper.sendMessage(this, bluetoothHelper.getDeviceByAddress(""), "Hello world!");
+                        String deviceAddress = call.argument("deviceAddress");
+                        String message = call.argument("message");
+                        bluetoothHelper.sendMessage(this, bluetoothHelper.getDeviceByAddress("10:5B:AD:8B:BC:3C"), message);
                         requestBluetoothPermission();
                         result.success("Devices printed");
                     } else {
@@ -283,6 +288,16 @@ class BluetoothHelper{
         }
     }
 
+    public BluetoothSocket createSocketWithPort(BluetoothDevice device, int port) {
+        try {
+            Method m = device.getClass().getMethod("createRfcommSocket", int.class);
+            Log.d(TAG, "Socket with port created");
+            return (BluetoothSocket) m.invoke(device, port);
+        } catch (Exception e) {
+            Log.d(TAG, "Error while creating a socket with port");
+            return null;
+        }
+    }
     public void sendMessage(Context context, BluetoothDevice device, String message) {
         new Thread(() -> {
             BluetoothSocket socket = null;
@@ -297,26 +312,42 @@ class BluetoothHelper{
                 }
 
                 // Establish the connection
-                socket = device.createRfcommSocketToServiceRecord(APP_UUID);
-                Log.d(TAG, "Client: Connecting to " + device.getName());
-                socket.connect();
-                Log.d(TAG, "Client: Connected");
+//                socket = device.createRfcommSocketToServiceRecord(APP_UUID);
+                socket = createSocketWithPort(device, 4);
 
+                Log.d(TAG, "Client: Connecting to " + device.getName());
+                try {
+                    socket.connect();
+                    Log.d(TAG,"Socket connection created");
+                }catch (Exception e) {
+                    Log.e(TAG, "Couldn't establish socket connection: ", e);
+                }
+                if (socket.isConnected()) {
+                    Log.d(TAG, "Client: Connected");
+                    Log.d(TAG, "=======================================");
+                }else {
+                    Log.d(TAG, "Something weird is going on and i don't know what it is");
+                    Log.d(TAG, "=======================================");
+                }
+
+                for(;;) {
                 // Get the output stream
                 outputStream = socket.getOutputStream();
 
+                String msg = "Uncle Roger";
                 // Send the message
-                outputStream.write(message.getBytes());
+                outputStream.write(msg.getBytes());
                 outputStream.flush();
-                Log.d(TAG, "Message sent: " + message);
+                Log.d(TAG, "Message sent: " + msg);
 
             } catch (Exception e) {
                 Log.e(TAG, "Error while sending message", e);
             } finally {
                 try {
-                    if (outputStream != null) outputStream.close();
-                    if (socket != null) socket.close();
+//                    if (outputStream != null) outputStream.close();
+//                    if (socket != null) socket.close();
                 } catch (Exception ignored) {
+                    Log.e(TAG, "Errror ignored", ignored);
                 }
             }
         }).start();
