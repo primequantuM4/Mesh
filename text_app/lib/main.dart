@@ -37,9 +37,10 @@ class BluetoothManager {
 
 
   Future<void> sendMessage(String deviceAddress, String message) async {
+    //Todo: update device address
     try {
       final result = await platform
-          .invokeMethod('sendMessage', {'deviceAddress': deviceAddress, 'message':message});
+          .invokeMethod('sendMessage', {'deviceAddress':deviceAddress , 'message':message});
       debugPrint(result);
     } catch (e) {
       debugPrint("Failed to connect: $e");
@@ -78,6 +79,13 @@ class MyApp extends StatelessWidget {
                   await blManager.printDevices();
                 },
                 child: const Text("Get connected device"),
+              ),
+
+              ElevatedButton(
+                onPressed: () async{
+                  await blManager.sendMessage("10:5b:ad:8b:bc:3c", "Abebe beso bela");
+                },
+                child: const Text("Send message to 10:5b:ad:8b:bc:3c")
               )
             ],
           ),

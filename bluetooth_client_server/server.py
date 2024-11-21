@@ -47,7 +47,8 @@ class BluetoothServer:
             self.server_sock.close()
 
 if __name__ == "__main__":
-    host = "10:5b:ad:8b:bc:3c"  # this is my pc's Replace with your Bluetooth adapter address
+    # host = "10:5b:ad:8b:bc:3c"  # this is my pc's Replace with your Bluetooth adapter address
+    host = "10:5b:ad:8b:bc:3c"
     port = 4
     server = BluetoothServer(host, port)
     server.run()
