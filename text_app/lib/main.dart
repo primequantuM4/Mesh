@@ -34,6 +34,17 @@ class BluetoothManager {
       debugPrint("Failed to connect: $e");
     }
   }
+
+
+  Future<void> sendMessage(String deviceAddress, String message) async {
+    try {
+      final result = await platform
+          .invokeMethod('sendMessage', {'deviceAddress': deviceAddress, 'message':message});
+      debugPrint(result);
+    } catch (e) {
+      debugPrint("Failed to connect: $e");
+    }
+  }
 }
 
 class MyApp extends StatelessWidget {

@@ -39,13 +39,13 @@ public class MainActivity extends FlutterActivity {
 
     private static final String CHANNEL = "bluetooth_channel";
     private final BluetoothHelper bluetoothHelper = new BluetoothHelper();
-    private final WifiDirectHelper wifiDirectHelper = new WifiDirectHelper(this, (data) -> Log.d("MainActivity", "Received data: "+ data));
+//    private final WifiDirectHelper wifiDirectHelper = new WifiDirectHelper(this, (data) -> Log.d("MainActivity", "Received data: "+ data));
 
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine){
         super.configureFlutterEngine(flutterEngine);
-        wifiDirectHelper.discoverPeers(this);
-        wifiDirectHelper.registerListeners(this);
+//        wifiDirectHelper.discoverPeers(this);
+//        wifiDirectHelper.registerListeners(this);
 
         new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
                 .setMethodCallHandler((call, result) -> {
@@ -67,6 +67,11 @@ public class MainActivity extends FlutterActivity {
                         result.success("Connected to server");
                     }else if (call.method.equals("printDevices")) {
                         bluetoothHelper.printDevices(this);
+                        requestBluetoothPermission();
+                        result.success("Devices printed");
+                    } else if (call.method.equals("sendMessage")) {
+
+                        bluetoothHelper.sendMessage(this, bluetoothHelper.getDeviceByAddress(""), "Hello world!");
                         requestBluetoothPermission();
                         result.success("Devices printed");
                     } else {
@@ -276,7 +281,45 @@ class BluetoothHelper{
         if (bluetoothAdapter == null) {
             Log.e(TAG, "Bluetooth is not available");
         }
+    }
 
+    public void sendMessage(Context context, BluetoothDevice device, String message) {
+        new Thread(() -> {
+            BluetoothSocket socket = null;
+            OutputStream outputStream = null;
+
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    if (checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                        Log.e(TAG, "Permission not granted");
+                        return;
+                    }
+                }
+
+                // Establish the connection
+                socket = device.createRfcommSocketToServiceRecord(APP_UUID);
+                Log.d(TAG, "Client: Connecting to " + device.getName());
+                socket.connect();
+                Log.d(TAG, "Client: Connected");
+
+                // Get the output stream
+                outputStream = socket.getOutputStream();
+
+                // Send the message
+                outputStream.write(message.getBytes());
+                outputStream.flush();
+                Log.d(TAG, "Message sent: " + message);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error while sending message", e);
+            } finally {
+                try {
+                    if (outputStream != null) outputStream.close();
+                    if (socket != null) socket.close();
+                } catch (Exception ignored) {
+                }
+            }
+        }).start();
     }
 
 
