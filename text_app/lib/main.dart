@@ -25,6 +25,7 @@ class BluetoothManager {
       debugPrint("Failed to print devices: $e");
     }
   }
+
   Future<void> connectToServer(String deviceAddress) async {
     try {
       final result = await platform
@@ -35,6 +36,14 @@ class BluetoothManager {
     }
   }
 
+  Future<void> sendTCP() async {
+    try {
+      final result = await platform .invokeMethod('sendTCP');
+      debugPrint(result);
+    } catch (e) {
+      debugPrint("Failed to connect: $e");
+    }
+  }
 
   Future<void> sendMessage(String deviceAddress, String message) async {
     //Todo: update device address
@@ -103,6 +112,13 @@ class MyApp extends StatelessWidget {
                     await blManager.sendMessage(address, "Send message");
                   },
                   child: const Text("Send message to $address")
+              ),
+
+              ElevatedButton(
+                  onPressed: () async{
+                    await blManager.sendTCP();
+                  },
+                  child: const Text("Send TCP")
               ),
             ],
           ),

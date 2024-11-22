@@ -38,6 +38,14 @@ import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.net.Socket;
+import java.util.logging.Logger;
+
 public class MainActivity extends FlutterActivity {
 
     private static final String CHANNEL = "bluetooth_channel";
@@ -83,7 +91,19 @@ public class MainActivity extends FlutterActivity {
 
                         requestBluetoothPermission();
                         result.success("Devices printed");
-                    } else {
+                    } else if (call.method.equals("sendTCP")){
+                        new Thread(() -> {
+                            String ip = "192.168.151.46";
+                            Log.d("REsponse", "re Clicked5"+ip);
+                            String response = WifiHelper.sendTcpRequest(ip, 5000, "Hello, Server!");
+                            if (response != null) {
+                                Log.d("TCP Response", "Server Response: " + response);
+                            } else {
+                                Log.e("TCP Response", "Failed to communicate with the server.");
+                            }
+                        }).start();
+                    }
+                    else {
 
                         result.notImplemented();
                     }
@@ -97,6 +117,53 @@ public class MainActivity extends FlutterActivity {
             }
         }
     }}
+
+
+class WifiHelper {
+    final static String TAG = "wifihelper";
+    public static String sendTcpRequest(String serverIp, int serverPort, String message) {
+        Socket socket = null;
+        PrintWriter out = null;
+        InputStream in = null;
+
+        Log.d(TAG, "Sending TCP request");
+        try {
+            socket = new Socket(serverIp, serverPort);
+
+            out = new PrintWriter(socket.getOutputStream(), true);
+            out.println(message);
+
+            in = socket.getInputStream();
+            StringBuilder response = new StringBuilder();
+
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            //Todo: update to read all the data if needed
+            while ((bytesRead = in.read(buffer)) != -1) {
+                response.append(new String(buffer, 0, bytesRead));
+                break; // Exit as soon as data is received
+            }
+
+            Log.d(TAG, "Response: " + response.toString().trim());
+            return response.toString().trim();
+
+
+        } catch (IOException e) {
+            Log.e(TAG, "Error sending TCP request:", e);
+            return null;
+
+        } finally {
+            // Clean up resources
+            try {
+                if (out != null) out.close();
+                if (in != null) in.close();
+                if (socket != null) socket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error closing TCP resources", e);
+            }
+        }
+    }
+}
 
 
 class WifiDirectHelper{
