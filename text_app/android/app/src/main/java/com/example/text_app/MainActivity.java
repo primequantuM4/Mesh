@@ -55,8 +55,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
   class  Constants{
-    public final  String PCMAC="18:56:80:F3:16:3B";
-    public final  String MiddlePhoneIP="192.168.151.36";
+    public static final  String PCMAC="18:56:80:F3:16:3B";
+    public static final  String MiddlePhoneIP="192.168.168.180";
 }
 
 public class MainActivity extends FlutterActivity {
@@ -104,13 +104,13 @@ public class MainActivity extends FlutterActivity {
                         String deviceAddress = call.argument("deviceAddress");
                         String message = call.argument("message");
 //                        bluetoothHelper.sendMessage(this, bluetoothHelper.getDeviceByAddress("10:5B:AD:8B:BC:3C"), message);
-                        bluetoothHelper.sendMessage(this, bluetoothHelper.getDeviceByAddress("18:56:80:F3:16:3B"), message);
+                        bluetoothHelper.sendMessage(this, bluetoothHelper.getDeviceByAddress(Constants.PCMAC), message);
 
                         requestBluetoothPermission();
                         result.success("Devices printed");
                     } else if (call.method.equals("sendTCP")){
                         new Thread(() -> {
-                            String ip = "192.168.151.36";
+                            String ip = Constants.MiddlePhoneIP;
                             Log.d("REsponse", "re Clicked5"+ip);
                             String message = call.argument("message");
                             WifiHelper.sendTcpRequest(this, ip, 50000, message);
@@ -145,9 +145,7 @@ class WifiHelper {
     private static ArrayList<String> messages = new ArrayList<>();
 
     static void addMsg() {
-        messages.add("abebe");
-        messages.add("kebede");
-        messages.add("abebe3");
+        messages.add("Sample message");
     }
 
     static ArrayList<String> getMessages() {
@@ -168,6 +166,7 @@ class WifiHelper {
                     byte[] buffer = message.getBytes();
                     Map<Integer, String> response = socketConnectionHandler(null, buffer);
 
+
                     if (response.containsKey(0)) {
                         // android devices talk through wifi
                         messages.add(message);
@@ -175,7 +174,7 @@ class WifiHelper {
 
                     }else {
                         BluetoothHelper helper = new BluetoothHelper();
-                        String deviceAddress = "10ire";
+                        String deviceAddress = Constants.PCMAC;
                         BluetoothDevice device = helper.getDeviceByAddress(deviceAddress);
                         helper.sendMessage(context, device, response.get(1));
                     }
@@ -227,6 +226,8 @@ class WifiHelper {
             socket = getOrCreateSocket(serverIp, serverPort, context);
             out = new PrintWriter(socket.getOutputStream(), true);
             out.println(message);
+            Log.d(TAG, "Sent message"+message);
+            messages.add(message);
 
         } catch (IOException e) {
             Log.e(TAG, "Error sending TCP request:", e);
@@ -575,7 +576,7 @@ class BluetoothHelper{
 
 
                 outputStream = socket.getOutputStream();
-                String msg = "Uncle Roger";
+                String msg = "Sample message A";
 
                 outputStream.write(msg.getBytes());
                 outputStream.flush();
