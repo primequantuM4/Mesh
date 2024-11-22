@@ -30,6 +30,8 @@ import java.net.InetSocketAddress;
 import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -52,6 +54,11 @@ import java.net.Socket;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
+  class  Constants{
+    public final  String PCMAC="18:56:80:F3:16:3B";
+    public final  String MiddlePhoneIP="192.168.151.36";
+}
+
 public class MainActivity extends FlutterActivity {
 
     private static final String CHANNEL = "bluetooth_channel";
@@ -61,7 +68,7 @@ public class MainActivity extends FlutterActivity {
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine){
 
-        WifiHelper.startTcpServer();
+        WifiHelper.startTcpServer(this);
         WifiHelper.addMsg();
         Log.d("SErver", "Tcp started");
         super.configureFlutterEngine(flutterEngine);
@@ -105,7 +112,8 @@ public class MainActivity extends FlutterActivity {
                         new Thread(() -> {
                             String ip = "192.168.151.36";
                             Log.d("REsponse", "re Clicked5"+ip);
-                            WifiHelper.sendTcpRequest(ip, 5000, "Hello, Server!");
+                            String message = call.argument("message");
+                            WifiHelper.sendTcpRequest(this, ip, 50000, message);
 
                         }).start();
                     }else if (call.method.equals("getMessages")){
@@ -128,7 +136,7 @@ public class MainActivity extends FlutterActivity {
 
 
 class WifiHelper {
-    final static String TAG = "wifihelper";
+    final static String TAG = "Wifi Helper";
     private static ConcurrentHashMap<String, Socket> socketMap = new ConcurrentHashMap<>();
     private static ConcurrentHashMap<String, Thread> listenerMap = new ConcurrentHashMap<>();
     private static Thread serverThread;
@@ -136,28 +144,42 @@ class WifiHelper {
     private static ServerSocket serverSocket;
     private static ArrayList<String> messages = new ArrayList<>();
 
-    static void addMsg(){
+    static void addMsg() {
         messages.add("abebe");
         messages.add("kebede");
         messages.add("abebe3");
     }
-    static  ArrayList<String> getMessages() {
+
+    static ArrayList<String> getMessages() {
         return messages;
     }
 
-    private static void startSocketListener(String serverIp, Socket socket) {
-        if (socket.isClosed()){
+    private static void startSocketListener(Context context, String serverIp, Socket socket) {
+        if (socket.isClosed()) {
             Log.e(TAG, "Socket is already closed");
             return;
-        }else{
+        } else {
             Log.d(TAG, "Socket is ready to be listened to");
         }
         Thread listenerThread = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                 String message;
                 while ((message = reader.readLine()) != null) {
-                    messages.add(message);
-                    Log.d(TAG, "Message received from " + serverIp + ": " + message);
+                    byte[] buffer = message.getBytes();
+                    Map<Integer, String> response = socketConnectionHandler(null, buffer);
+
+                    if (response.containsKey(0)) {
+                        // android devices talk through wifi
+                        messages.add(message);
+                        Log.d(TAG, "Message received from " + serverIp + ": " + message);
+
+                    }else {
+                        BluetoothHelper helper = new BluetoothHelper();
+                        String deviceAddress = "10ire";
+                        BluetoothDevice device = helper.getDeviceByAddress(deviceAddress);
+                        helper.sendMessage(context, device, response.get(1));
+                    }
+
                 }
             } catch (IOException e) {
                 Log.e(TAG, "Error in socket listener for IP " + serverIp, e);
@@ -173,7 +195,17 @@ class WifiHelper {
         listenerThread.start();
         Log.d(TAG, "Socket listener started for IP " + serverIp);
     }
-    static Socket getOrCreateSocket(String serverIp, int serverPort) throws IOException {
+
+    public static Map<Integer, String> socketConnectionHandler(Context context, byte[] buffer) {
+            ByteBuffer bufferWrapper = ByteBuffer.wrap(buffer);
+            int isForwardedToPc = Byte.toUnsignedInt(buffer[0]);
+
+            String message = new String(buffer, 1, buffer.length - 1, StandardCharsets.UTF_8);
+            Map<Integer, String> response = new HashMap<>();
+            response.put(isForwardedToPc, message);
+            return response;
+    }
+    static Socket getOrCreateSocket(String serverIp, int serverPort, Context context) throws IOException {
         if (socketMap.containsKey(serverIp)) {
             Socket retrieved =  socketMap.get(serverIp);
             if (retrieved != null && !retrieved.isClosed()){
@@ -182,17 +214,17 @@ class WifiHelper {
         }
         Socket socket =  new Socket(serverIp, serverPort);
         socketMap.put(serverIp, socket);
-        startSocketListener(serverIp, socket);
+        startSocketListener(context, serverIp, socket);
         return socket;
     }
-    public static void sendTcpRequest(String serverIp, int serverPort, String message) {
+    public static void sendTcpRequest(Context context, String serverIp, int serverPort, String message) {
         Socket socket = null;
         PrintWriter out = null;
         InputStream in = null;
 
         Log.d(TAG, "Sending TCP request");
         try {
-            socket = getOrCreateSocket(serverIp, serverPort);
+            socket = getOrCreateSocket(serverIp, serverPort, context);
             out = new PrintWriter(socket.getOutputStream(), true);
             out.println(message);
 
@@ -202,7 +234,7 @@ class WifiHelper {
     }
 
 
-    public static void startTcpServer() {
+    public static void startTcpServer(Context context) {
         if (serverThread != null && serverThread.isAlive()) {
             Log.d(TAG, "TCP Server is already running");
             return;
@@ -232,7 +264,7 @@ class WifiHelper {
                         socketMap.put(clientIp, clientSocket);
 
                         // Handle client messages in a separate thread
-                        startSocketListener(clientIp, clientSocket);
+                        startSocketListener(context, clientIp, clientSocket);
                     } catch (IOException e) {
                         Log.e(TAG, "Error accepting client connection", e);
                     }
@@ -480,6 +512,7 @@ class BluetoothHelper{
             Log.e(TAG, "Bluetooth is not available");
         }
     }
+
 
     public BluetoothSocket createSocketWithPort(BluetoothDevice device, int port) {
         try {
