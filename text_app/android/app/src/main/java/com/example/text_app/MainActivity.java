@@ -24,9 +24,14 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +60,10 @@ public class MainActivity extends FlutterActivity {
 
     @Override
     public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine){
+
+        WifiHelper.startTcpServer();
+        WifiHelper.addMsg();
+        Log.d("SErver", "Tcp started");
         super.configureFlutterEngine(flutterEngine);
 //        wifiDirectHelper.discoverPeers(this);
 //        wifiDirectHelper.registerListeners(this);
@@ -94,11 +103,13 @@ public class MainActivity extends FlutterActivity {
                         result.success("Devices printed");
                     } else if (call.method.equals("sendTCP")){
                         new Thread(() -> {
-                            String ip = "192.168.151.46";
+                            String ip = "192.168.151.36";
                             Log.d("REsponse", "re Clicked5"+ip);
                             WifiHelper.sendTcpRequest(ip, 5000, "Hello, Server!");
 
                         }).start();
+                    }else if (call.method.equals("getMessages")){
+                        result.success(WifiHelper.getMessages());
                     }
                     else {
 
@@ -120,6 +131,19 @@ class WifiHelper {
     final static String TAG = "wifihelper";
     private static ConcurrentHashMap<String, Socket> socketMap = new ConcurrentHashMap<>();
     private static ConcurrentHashMap<String, Thread> listenerMap = new ConcurrentHashMap<>();
+    private static Thread serverThread;
+    private static final int SERVER_PORT = 50000;
+    private static ServerSocket serverSocket;
+    private static ArrayList<String> messages = new ArrayList<>();
+
+    static void addMsg(){
+        messages.add("abebe");
+        messages.add("kebede");
+        messages.add("abebe3");
+    }
+    static  ArrayList<String> getMessages() {
+        return messages;
+    }
 
     private static void startSocketListener(String serverIp, Socket socket) {
         if (socket.isClosed()){
@@ -132,6 +156,7 @@ class WifiHelper {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                 String message;
                 while ((message = reader.readLine()) != null) {
+                    messages.add(message);
                     Log.d(TAG, "Message received from " + serverIp + ": " + message);
                 }
             } catch (IOException e) {
@@ -175,6 +200,70 @@ class WifiHelper {
             Log.e(TAG, "Error sending TCP request:", e);
         }
     }
+
+
+    public static void startTcpServer() {
+        if (serverThread != null && serverThread.isAlive()) {
+            Log.d(TAG, "TCP Server is already running");
+            return;
+        }
+
+        serverThread = new Thread(() -> {
+            try {
+                serverSocket = new ServerSocket(SERVER_PORT);
+//                serverSocket.bind(new InetSocketAddress("0.0.0.0", SERVER_PORT));
+
+                String serverIp = getLocalIpAddress(); // Get the local IP address
+                if (serverIp.equals("0.0.0.0")) {
+                    serverIp = "127.0.0.1"; // Fallback to localhost for unspecified addresses
+                }
+                Log.d(TAG, "TCP Server started on IP " + serverIp + " and port " + SERVER_PORT);
+
+
+
+                while (!serverSocket.isClosed()) {
+                    try {
+                        // Accept an incoming connection
+                        Socket clientSocket = serverSocket.accept();
+                        String clientIp = clientSocket.getInetAddress().getHostAddress();
+                        Log.d(TAG, "New client connected: " + clientIp);
+
+                        // Store the connection in socketMap
+                        socketMap.put(clientIp, clientSocket);
+
+                        // Handle client messages in a separate thread
+                        startSocketListener(clientIp, clientSocket);
+                    } catch (IOException e) {
+                        Log.e(TAG, "Error accepting client connection", e);
+                    }
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Error starting TCP server", e);
+            } finally {
+                Log.e(TAG, "Stopped TCP server");
+            }
+        });
+
+        serverThread.start();
+    }
+    public static String getLocalIpAddress() {
+        try {
+            for (Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces(); interfaces.hasMoreElements();) {
+                NetworkInterface networkInterface = interfaces.nextElement();
+                for (Enumeration<InetAddress> addresses = networkInterface.getInetAddresses(); addresses.hasMoreElements();) {
+                    InetAddress address = addresses.nextElement();
+                    if (!address.isLoopbackAddress() && address instanceof Inet4Address) {
+                        return address.getHostAddress(); // Return the first non-loopback IPv4 address
+                    }
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting local IP address", e);
+        }
+        return "0.0.0.0"; // Fallback to default unspecified address
+    }
+
+
 }
 
 

@@ -26,6 +26,16 @@ class BluetoothManager {
     }
   }
 
+  Future<void> FetchMessages() async {
+    try {
+      final result = await platform.invokeMethod('getMessages');
+      debugPrint("Messages: $result");
+    }catch(e) {
+      debugPrint("Failed to print devices: $e");
+    }
+  }
+
+
   Future<void> connectToServer(String deviceAddress) async {
     try {
       final result = await platform
@@ -120,6 +130,19 @@ class MyApp extends StatelessWidget {
                   },
                   child: const Text("Send TCP")
               ),
+
+              ElevatedButton(
+                  onPressed: () async{
+                    var ip = "hello world";
+                    await Clipboard.setData(ClipboardData(text: ip));
+                  },
+                  child: const Text("Get ip")
+              ),
+
+
+              ElevatedButton(onPressed: () async {
+                await blManager.FetchMessages();
+              }, child: const Text("Get Messages") )
             ],
           ),
         )),
