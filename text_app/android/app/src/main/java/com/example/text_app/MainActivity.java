@@ -44,6 +44,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Logger;
 
 public class MainActivity extends FlutterActivity {
@@ -95,12 +96,8 @@ public class MainActivity extends FlutterActivity {
                         new Thread(() -> {
                             String ip = "192.168.151.46";
                             Log.d("REsponse", "re Clicked5"+ip);
-                            String response = WifiHelper.sendTcpRequest(ip, 5000, "Hello, Server!");
-                            if (response != null) {
-                                Log.d("TCP Response", "Server Response: " + response);
-                            } else {
-                                Log.e("TCP Response", "Failed to communicate with the server.");
-                            }
+                            WifiHelper.sendTcpRequest(ip, 5000, "Hello, Server!");
+
                         }).start();
                     }
                     else {
@@ -121,46 +118,61 @@ public class MainActivity extends FlutterActivity {
 
 class WifiHelper {
     final static String TAG = "wifihelper";
-    public static String sendTcpRequest(String serverIp, int serverPort, String message) {
+    private static ConcurrentHashMap<String, Socket> socketMap = new ConcurrentHashMap<>();
+    private static ConcurrentHashMap<String, Thread> listenerMap = new ConcurrentHashMap<>();
+
+    private static void startSocketListener(String serverIp, Socket socket) {
+        if (socket.isClosed()){
+            Log.e(TAG, "Socket is already closed");
+            return;
+        }else{
+            Log.d(TAG, "Socket is ready to be listened to");
+        }
+        Thread listenerThread = new Thread(() -> {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+                String message;
+                while ((message = reader.readLine()) != null) {
+                    Log.d(TAG, "Message received from " + serverIp + ": " + message);
+                }
+            } catch (IOException e) {
+                Log.e(TAG, "Error in socket listener for IP " + serverIp, e);
+            } finally {
+                // Remove socket and thread when closed
+                socketMap.remove(serverIp);
+                listenerMap.remove(serverIp);
+                Log.d(TAG, "Socket listener for IP " + serverIp + " stopped.");
+            }
+        });
+
+        listenerMap.put(serverIp, listenerThread);
+        listenerThread.start();
+        Log.d(TAG, "Socket listener started for IP " + serverIp);
+    }
+    static Socket getOrCreateSocket(String serverIp, int serverPort) throws IOException {
+        if (socketMap.containsKey(serverIp)) {
+            Socket retrieved =  socketMap.get(serverIp);
+            if (retrieved != null && !retrieved.isClosed()){
+                return retrieved;
+            }
+        }
+        Socket socket =  new Socket(serverIp, serverPort);
+        socketMap.put(serverIp, socket);
+        startSocketListener(serverIp, socket);
+        return socket;
+    }
+    public static void sendTcpRequest(String serverIp, int serverPort, String message) {
         Socket socket = null;
         PrintWriter out = null;
         InputStream in = null;
 
         Log.d(TAG, "Sending TCP request");
         try {
-            socket = new Socket(serverIp, serverPort);
-
+            socket = getOrCreateSocket(serverIp, serverPort);
             out = new PrintWriter(socket.getOutputStream(), true);
             out.println(message);
 
-            in = socket.getInputStream();
-            StringBuilder response = new StringBuilder();
-
-            byte[] buffer = new byte[1024];
-            int bytesRead;
-            //Todo: update to read all the data if needed
-            while ((bytesRead = in.read(buffer)) != -1) {
-                response.append(new String(buffer, 0, bytesRead));
-                break; // Exit as soon as data is received
-            }
-
-            Log.d(TAG, "Response: " + response.toString().trim());
-            return response.toString().trim();
-
-
         } catch (IOException e) {
             Log.e(TAG, "Error sending TCP request:", e);
-            return null;
-
-        } finally {
-            // Clean up resources
-            try {
-                if (out != null) out.close();
-                if (in != null) in.close();
-                if (socket != null) socket.close();
-            } catch (IOException e) {
-                Log.e(TAG, "Error closing TCP resources", e);
-            }
         }
     }
 }
