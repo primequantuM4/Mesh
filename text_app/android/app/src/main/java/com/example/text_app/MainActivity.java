@@ -166,8 +166,8 @@ class WifiHelper {
                     byte[] buffer = message.getBytes();
                     Map<Integer, String> response = socketConnectionHandler(null, buffer);
 
-
-                    if (response.containsKey(0)) {
+                    if (message.charAt(0)=='m'){
+//                    if (response.containsKey(0)) {
                         // android devices talk through wifi
                         messages.add(message);
                         Log.d(TAG, "Message received from " + serverIp + ": " + message);
@@ -176,7 +176,8 @@ class WifiHelper {
                         BluetoothHelper helper = new BluetoothHelper();
                         String deviceAddress = Constants.PCMAC;
                         BluetoothDevice device = helper.getDeviceByAddress(deviceAddress);
-                        helper.sendMessage(context, device, response.get(1));
+//                        helper.sendMessage(context, device, response.get(1));
+                        helper.sendMessage(context, device, message);
                     }
 
                 }
