@@ -18,7 +18,7 @@ class BluetoothServer:
                 if not data:
                     break
                 print(f"Received data from {client_info}: {data.decode('utf-8')}")
-                self.broadcast_message(f"Received message from {client_info}: {data.decode('utf-8')}")
+                self.broadcast_message(f"Hello mesh from pc!")
         except OSError:
             pass
 
@@ -37,17 +37,22 @@ class BluetoothServer:
         print("Waiting for connections...")
         try:
             while True:
-                client_sock, client_info = self.server_sock.accept()
-                self.clients.append(client_sock)
-                client_thread = threading.Thread(target=self.handle_client, args=(client_sock, client_info))
-                client_thread.start()
+                try:
+                    client_sock, client_info = self.server_sock.accept()
+                    self.clients.append(client_sock)
+                    client_thread = threading.Thread(target=self.handle_client, args=(client_sock, client_info))
+                    client_thread.start()
+                except socket.timeout:
+                    continue
+
         except KeyboardInterrupt:
             print("Server shutting down")
         finally:
             self.server_sock.close()
 
 if __name__ == "__main__":
-    host = "10:5b:ad:8b:bc:3c"  # this is my pc's Replace with your Bluetooth adapter address
+    # host = "10:5b:ad:8b:bc:3c"  # this is my pc's Replace with your Bluetooth adapter address
+    host = "18:CC:18:82:D0:E7"
     port = 4
     server = BluetoothServer(host, port)
     server.run()

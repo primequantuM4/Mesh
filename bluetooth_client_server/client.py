@@ -28,7 +28,7 @@ def send_messages(client_socket):
 
 def main():
     client = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_STREAM, socket.BTPROTO_RFCOMM)
-    server_address = ("10:5b:ad:8b:bc:3c", 4)
+    server_address = ("18:56:80:F3:16:3B", 4)
 
     try:
         client.connect(server_address)

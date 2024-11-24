@@ -1,76 +1,149 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:async';
 
 void main() {
   runApp(const MyApp());
 }
 
-class BluetoothManager {
-  static const platform = MethodChannel('bluetooth_channel');
+class MeshManager {
+  static const platform = MethodChannel('mesh_channel');
 
-  Future<void> startServer() async {
+
+  Future<List<String>> fetchMessages() async {
     try {
-      final result = await platform.invokeMethod('startServer');
-      debugPrint(result);
-    } catch (_) {
-      debugPrint("Failed to start server");
+      final result = await platform.invokeMethod('getMessages');
+      if (result is List) {
+        return result.map((item) => item.toString()).toList();
+      } else {
+        return [];
+      }
+    } catch (e) {
+      debugPrint("Failed to fetch messages: $e");
+      return [];
     }
   }
 
-  Future<void> printDevices() async {
+  Future<void> sendTCP( String message) async {
     try {
-      final result = await platform.invokeMethod('printDevices');
-      debugPrint("My output $result");
-    }catch(e) {
-      debugPrint("Failed to print devices: $e");
-    }
-  }
-  Future<void> connectToServer(String deviceAddress) async {
-    try {
-      final result = await platform
-          .invokeMethod('connectToServer', {'deviceAddress': deviceAddress});
+      final result = await platform.invokeMethod('sendTCP', {
+        // 'ip': ip,
+        'message': message,
+        // 'port': port,
+      });
       debugPrint(result);
     } catch (e) {
-      debugPrint("Failed to connect: $e");
+      debugPrint("Failed to send TCP: $e");
+    }
+  }
+
+  Future<void> sendMessage(String deviceAddress, String message) async {
+    try {
+      final result = await platform.invokeMethod('sendMessage', {'deviceAddress': deviceAddress, 'message': message});
+      debugPrint(result);
+    } catch (e) {
+      debugPrint("Failed to send message: $e");
     }
   }
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
+  @override
+  _MyAppState createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  final MeshManager blManager = MeshManager();
+  List<String> messages = [];
+  late Timer _timer;
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Start polling for messages every second
+    _timer = Timer.periodic(const Duration(seconds: 1), _fetchMessages);
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  void _fetchMessages(Timer timer) async {
+    final newMessage = await blManager.fetchMessages();
+
+    setState(() {
+      messages = newMessage;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final BluetoothManager blManager = BluetoothManager();
+    const address = "10:5B:AD:8B:BC:3C";
+
     return MaterialApp(
       title: 'Flutter Demo',
       home: Scaffold(
         body: SafeArea(
-            child: Center(
           child: Column(
             children: [
               ElevatedButton(
-                onPressed: () async{
-                 await blManager.connectToServer("Device address");
+                onPressed: () async {
+                  await blManager.sendMessage(address, "Send message");
                 },
-                child: const Text("Check connection"),
+                child: const Text("Send message to $address"),
               ),
               ElevatedButton(
-                onPressed: () async{
-                  await blManager.startServer();
+                onPressed: () async {
+                  var ip = "hello world";
+                  await Clipboard.setData(ClipboardData(text: ip));
                 },
-                child: const Text("Check server"),
+                child: const Text("Get ip"),
               ),
-              ElevatedButton(
-                onPressed: () async{
-                  await blManager.printDevices();
-                },
-                child: const Text("Get connected device"),
-              )
+              Expanded(
+                child: ListView.builder(
+                  reverse: true, // Show new messages at the bottom
+                  itemCount: messages.length,
+                  itemBuilder: (context, index) {
+                    return ListTile(
+                      title: Text(messages[index]),
+                    );
+                  },
+                ),
+              ),
+
+              // Text field and button to send TCP message
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _controller,
+                      decoration: const InputDecoration(
+                        labelText: "Enter message",
+                      ),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () async {
+                      await blManager.sendTCP(
+                        // ip: "",
+                         _controller.text,
+                        // port: 1234,
+                      );
+
+                      _controller.clear();
+                    },
+                    child: const Text("Send TCP"),
+                  ),
+                ],
+              ),
             ],
           ),
-        )),
+        ),
       ),
     );
   }
