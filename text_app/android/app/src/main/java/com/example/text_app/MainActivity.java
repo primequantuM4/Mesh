@@ -56,12 +56,12 @@ import java.util.logging.Logger;
 
 class Constants {
     public static final String PCMAC = "18:CC:18:82:D0:E7";
-    public static final String MiddlePhoneIP = "192.168.1.7";
+    public static final String MiddlePhoneIP = "192.168.78.169";
 }
 
 public class MainActivity extends FlutterActivity {
 
-    private static final String CHANNEL = "";
+    private static final String CHANNEL = "mesh_channel";
     private final BluetoothHelper bluetoothHelper = new BluetoothHelper();
 //    private final WifiDirectHelper wifiDirectHelper = new WifiDirectHelper(this, (data) -> Log.d("MainActivity", "Received data: "+ data));
 
