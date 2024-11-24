@@ -6,31 +6,13 @@ void main() {
   runApp(const MyApp());
 }
 
-class BluetoothManager {
-  static const platform = MethodChannel('bluetooth_channel');
+class MeshManager {
+  static const platform = MethodChannel('mesh_channel');
 
-  Future<void> startServer() async {
-    try {
-      final result = await platform.invokeMethod('startServer');
-      debugPrint(result);
-    } catch (_) {
-      debugPrint("Failed to start server");
-    }
-  }
-
-  Future<void> printDevices() async {
-    try {
-      final result = await platform.invokeMethod('printDevices');
-      debugPrint("My output $result");
-    } catch (e) {
-      debugPrint("Failed to print devices: $e");
-    }
-  }
 
   Future<List<String>> fetchMessages() async {
     try {
       final result = await platform.invokeMethod('getMessages');
-      print(result);
       if (result is List) {
         return result.map((item) => item.toString()).toList();
       } else {
@@ -39,16 +21,6 @@ class BluetoothManager {
     } catch (e) {
       debugPrint("Failed to fetch messages: $e");
       return [];
-    }
-  }
-
-  Future<void> connectToServer(String deviceAddress) async {
-    try {
-      final result = await platform
-          .invokeMethod('connectToServer', {'deviceAddress': deviceAddress});
-      debugPrint(result);
-    } catch (e) {
-      debugPrint("Failed to connect: $e");
     }
   }
 
@@ -83,7 +55,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final BluetoothManager blManager = BluetoothManager();
+  final MeshManager blManager = MeshManager();
   List<String> messages = [];
   late Timer _timer;
   final TextEditingController _controller = TextEditingController();
@@ -119,37 +91,6 @@ class _MyAppState extends State<MyApp> {
         body: SafeArea(
           child: Column(
             children: [
-              // Buttons to interact with BluetoothManager
-              ElevatedButton(
-                onPressed: () async {
-                  await blManager.connectToServer("Device address");
-                },
-                child: const Text("Check connection"),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  await blManager.startServer();
-                },
-                child: const Text("Check server"),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  await blManager.printDevices();
-                },
-                child: const Text("Get connected device"),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  await blManager.startServer();
-                },
-                child: const Text("Start Server1"),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  await blManager.connectToServer(address);
-                },
-                child: const Text("Connect to server 2"),
-              ),
               ElevatedButton(
                 onPressed: () async {
                   await blManager.sendMessage(address, "Send message");
