@@ -7,7 +7,6 @@ void main() {
   runApp(const MyApp());
 }
 
-
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -16,7 +15,7 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  final MeshManager blManager = MeshManager();
+  final MeshManager meshManager = MeshManager();
   List<String> messages = [];
   late Timer _timer;
   final TextEditingController _controller = TextEditingController();
@@ -35,7 +34,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _fetchMessages(Timer timer) async {
-    final newMessage = await blManager.fetchMessages();
+    final newMessage = await meshManager.fetchMessages();
 
     setState(() {
       messages = newMessage;
@@ -54,9 +53,12 @@ class _MyAppState extends State<MyApp> {
             children: [
               ElevatedButton(
                 onPressed: () async {
-                  await blManager.sendMessage(address, "Send message");
+                  await meshManager.sendMessage(
+                    address,
+                    "Hello bluetooth device!",
+                  );
                 },
-                child: const Text("Send message to $address"),
+                child: const Text("Send message to Bluetooth socket"),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -90,9 +92,9 @@ class _MyAppState extends State<MyApp> {
                   ),
                   ElevatedButton(
                     onPressed: () async {
-                      await blManager.sendTCP(
+                      await meshManager.sendTCP(
                         // ip: "",
-                         _controller.text,
+                        _controller.text,
                         // port: 1234,
                       );
 

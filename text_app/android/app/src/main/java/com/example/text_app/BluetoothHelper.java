@@ -102,7 +102,7 @@ public class BluetoothHelper {
                     try {
                         int bytes = inputStream.read(buffer);
                         String incomingMessage = new String(buffer, 0, bytes);
-                        Log.d(TAG, "Received Message" + incomingMessage);
+                        Log.d(TAG, "Received Message " + incomingMessage);
                     } catch (Exception e) {
                         Log.e(TAG, "Bluetooth Input stream was disconnected", e);
                         break;

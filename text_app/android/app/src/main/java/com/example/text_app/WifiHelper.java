@@ -59,7 +59,8 @@ class WifiHelper {
                         Log.d(TAG, "Message received from " + serverIp + ": " + message);
                     } else {
                         BluetoothHelper helper = new BluetoothHelper();
-                        String deviceAddress = Constants.PCMAC;
+                        String deviceAddress = Constants.PC_MAC;
+
                         BluetoothDevice device = helper.getDeviceByAddress(deviceAddress);
 //                        helper.sendMessage(context, device, response.get(1));
                         helper.sendMessage(context, device, message);
